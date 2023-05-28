@@ -1,4 +1,4 @@
-package be.parus17.enersmart.controller.model.solaredge;
+package be.parus17.enersmart.controller.model.solaredge.inventory;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
