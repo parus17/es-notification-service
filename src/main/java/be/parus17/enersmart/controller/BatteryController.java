@@ -8,10 +8,8 @@ import be.parus17.enersmart.controller.model.solaredge.inventory.InventoryRespon
 import be.parus17.enersmart.controller.model.solaredge.inventory.Inverter;
 import be.parus17.enersmart.controller.model.solaredge.powerflow.PowerFlowResponse;
 import be.parus17.enersmart.controller.model.solaredge.powerflow.Storage;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,7 +20,6 @@ import reactor.core.publisher.Mono;
 @RestController
 @RequestMapping("/battery")
 @AllArgsConstructor
-@Slf4j
 public class BatteryController {
     private ObjectMapper objectMapper;
     private final WebClient webClient = WebClient.builder()
@@ -74,7 +71,7 @@ public class BatteryController {
                 .bodyToMono(PowerFlowResponse.class)
                 .map(response -> {
                     // TODO improve
-                    Storage storage= response.getSiteCurrentPowerFlow().getStorage();
+                    Storage storage = response.getSiteCurrentPowerFlow().getStorage();
 
                     return StorageInfo.builder()
                             .status(storage.getStatus())
