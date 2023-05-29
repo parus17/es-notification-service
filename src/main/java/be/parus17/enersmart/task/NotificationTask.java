@@ -17,6 +17,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -25,18 +27,21 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class NotificationTask {
     private ObjectMapper objectMapper;
-
-    private final WebClient batteryWebClient = WebClient.builder()
-            .baseUrl("https://monitoringapi.solaredge.com/site/1453155")
-            .build();
-    private final WebClient notificationWebClient = WebClient.builder()
-            .baseUrl("https://maker.ifttt.com/trigger/battery_treshold_reached/with/key/cUkiWNvA9P7AqdwmyjzWET")
-            .build();
     private final String notificationStatusPath = "notification_status.json";
+    private final List<String> interestedDeviceUrls = Arrays.asList(
+            "https://maker.ifttt.com/trigger/battery_treshold_reached/with/key/cUkiWNvA9P7AqdwmyjzWET",
+            "https://maker.ifttt.com/trigger/battery_treshold_reached/with/key/bMWxig56Wvd4J4LEBLUdgQ",
+            "https://maker.ifttt.com/trigger/battery_treshold_reached/with/key/0hRdNZLaQeJod_nhOHcqw"
+    );
+
 
     @Scheduled(fixedRate = 5, timeUnit = TimeUnit.MINUTES)
     public void executeNotificationTask() {
         log.debug("Execute notification task");
+
+        WebClient batteryWebClient = WebClient.builder()
+                .baseUrl("https://monitoringapi.solaredge.com/site/1453155")
+                .build();
 
         batteryWebClient.get()
                 .uri(uriBuilder -> uriBuilder
@@ -47,45 +52,57 @@ public class NotificationTask {
                 .retrieve()
                 .bodyToMono(PowerFlowResponse.class)
                 .map(NotificationTask::mapToStorageInfo)
-                .subscribe(storageInfo -> {
-                    log.debug(storageInfo.toString());
-                    NotificationStatus notificationStatus = retrieveNotificationStatus();
+                .subscribe(this::processStorageInfo);
+    }
 
-                    Notification notification = null;
+    private void processStorageInfo(StorageInfo storageInfo) {
+        log.debug(storageInfo.toString());
+        NotificationStatus notificationStatus = retrieveNotificationStatus();
 
-                    if (storageInfo.getChargeLevel() > 90) {
-                        if (Objects.isNull(notificationStatus.getTreshold90())) {
-                            notificationStatus.setTreshold90(LocalDate.now());
-                            notification = Notification.builder()
-                                    .value1("Battery charge level > 90%")
-                                    .build();
-                        }
-                    } else {
-                        notificationStatus.setTreshold90(null);
-                    }
+        Notification notification = null;
 
-                    if (storageInfo.getChargeLevel() < 30) {
-                        if (Objects.isNull(notificationStatus.getTreshold30())) {
-                            notificationStatus.setTreshold30(LocalDate.now());
-                            notification = Notification.builder()
-                                    .value1("Battery charge level < 30%")
-                                    .build();
-                        }
-                    } else {
-                        notificationStatus.setTreshold30(null);
-                    }
+        if (storageInfo.getChargeLevel() > 90) {
+            if (Objects.isNull(notificationStatus.getTreshold90())) {
+                notificationStatus.setTreshold90(LocalDate.now());
+                notification = Notification.builder()
+                        .value1("Battery charge level > 90%")
+                        .build();
+            }
+        } else {
+            notificationStatus.setTreshold90(null);
+        }
 
-                    if (Objects.nonNull(notification)) {
-                        notificationWebClient.post()
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .body(BodyInserters.fromValue(notification))
-                                .retrieve()
-                                .bodyToMono(Void.class)
-                                .subscribe();
-                    }
+        if (storageInfo.getChargeLevel() < 30) {
+            if (Objects.isNull(notificationStatus.getTreshold30())) {
+                notificationStatus.setTreshold30(LocalDate.now());
+                notification = Notification.builder()
+                        .value1("Battery charge level < 30%")
+                        .build();
+            }
+        } else {
+            notificationStatus.setTreshold30(null);
+        }
 
-                    storeNotificationStatus(notificationStatus);
-                });
+        if (Objects.nonNull(notification)) {
+            sendNotification(notification);
+        }
+
+        storeNotificationStatus(notificationStatus);
+    }
+
+    private void sendNotification(Notification notification) {
+        interestedDeviceUrls.parallelStream().forEach(interestedDeviceUrl -> {
+            WebClient notificationWebClient = WebClient.builder()
+                    .baseUrl(interestedDeviceUrl)
+                    .build();
+
+            notificationWebClient.post()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(BodyInserters.fromValue(notification))
+                    .retrieve()
+                    .bodyToMono(Void.class)
+                    .subscribe();
+        });
     }
 
     private static StorageInfo mapToStorageInfo(PowerFlowResponse response) {
