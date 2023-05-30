@@ -35,7 +35,7 @@ public class NotificationTask {
     );
 
 
-    @Scheduled(fixedRate = 5, timeUnit = TimeUnit.MINUTES)
+    @Scheduled(fixedRate = 1, timeUnit = TimeUnit.MINUTES)
     public void executeNotificationTask() {
         log.debug("Execute notification task");
 
